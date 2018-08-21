@@ -1,0 +1,71 @@
+现象:
+增加kubernetes node,报以下错误:
+kubeadm join 192.168.2.244:6443 --token 4ftbhz.chcsn4ycxm7rtznp --discovery-token-ca-cert-hash sha256:49d048fc9da0957357d14f87c34d1f107a97bcfecf27b383543638cd29a8baaf
+[preflight] running pre-flight checks
+        [WARNING RequiredIPVSKernelModulesAvailable]: the IPVS proxier will not be used, because the following required kernel modules are not loaded: [ip_vs ip_vs_rr ip_vs_wrr ip_vs_sh] or no builtin kernel ipvs support: map[ip_vs_wrr:{} ip_vs_sh:{} nf_conntrack_ipv4:{} ip_vs:{} ip_vs_rr:{}]
+you can solve this problem with following methods:
+ 1. Run 'modprobe -- ' to load missing kernel modules;
+2. Provide the missing builtin kernel ipvs support
+
+I0821 09:43:27.388000    6599 kernel_validator.go:81] Validating kernel version
+I0821 09:43:27.388122    6599 kernel_validator.go:96] Validating kernel config
+        [WARNING SystemVerification]: docker version is greater than the most recently validated version. Docker version: 18.06.0-ce. Max validated version: 17.03
+[discovery] Trying to connect to API Server "192.168.2.244:6443"
+[discovery] Created cluster-info discovery client, requesting info from "https://192.168.2.244:6443"
+[discovery] Requesting info from "https://192.168.2.244:6443" again to validate TLS against the pinned public key
+[discovery] Cluster info signature and contents are valid and TLS certificate validates against pinned roots, will use API Server "192.168.2.244:6443"
+[discovery] Successfully established connection with API Server "192.168.2.244:6443"
+[kubelet] Downloading configuration for the kubelet from the "kubelet-config-1.11" ConfigMap in the kube-system namespace
+Unauthorized
+
+增加节点失败.
+
+原因分析:
+kubernetes的token在24小时后过期,这里要重新生成token.
+
+处理过程:
+在master节点:
+kubeadm token create --print-join-command 
+I0821 09:50:57.987718    2745 feature_gate.go:230] feature gates: &{map[]}
+kubeadm join 192.168.2.244:6443 --token c6wpzo.2styxp3kpotzmv8s --discovery-token-ca-cert-hash sha256:49d048fc9da0957357d14f87c34d1f107a97bcfecf27b383543638cd29a8baaf
+
+在要新增的node节点:
+rm -f /etc/kubernetes/pki/ca.crt
+rm -f /etc/kubernetes/bootstrap-kubelet.conf
+
+kubeadm join 192.168.2.244:6443 --token c6wpzo.2styxp3kpotzmv8s --discovery-token-ca-cert-hash sha256:49d048fc9da0957357d14f87c34d1f107a97bcfecf27b383543638cd29a8baaf
+
+[preflight] running pre-flight checks
+        [WARNING RequiredIPVSKernelModulesAvailable]: the IPVS proxier will not be used, because the following required kernel modules are not loaded: [ip_vs_wrr ip_vs_sh ip_vs ip_vs_rr] or no builtin kernel ipvs support: map[ip_vs:{} ip_vs_rr:{} ip_vs_wrr:{} ip_vs_sh:{} nf_conntrack_ipv4:{}]
+you can solve this problem with following methods:
+ 1. Run 'modprobe -- ' to load missing kernel modules;
+2. Provide the missing builtin kernel ipvs support
+
+I0821 09:51:23.291013    6984 kernel_validator.go:81] Validating kernel version
+I0821 09:51:23.291171    6984 kernel_validator.go:96] Validating kernel config
+        [WARNING SystemVerification]: docker version is greater than the most recently validated version. Docker version: 18.06.0-ce. Max validated version: 17.03
+[discovery] Trying to connect to API Server "192.168.2.244:6443"
+[discovery] Created cluster-info discovery client, requesting info from "https://192.168.2.244:6443"
+[discovery] Requesting info from "https://192.168.2.244:6443" again to validate TLS against the pinned public key
+[discovery] Cluster info signature and contents are valid and TLS certificate validates against pinned roots, will use API Server "192.168.2.244:6443"
+[discovery] Successfully established connection with API Server "192.168.2.244:6443"
+[kubelet] Downloading configuration for the kubelet from the "kubelet-config-1.11" ConfigMap in the kube-system namespace
+[kubelet] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[kubelet] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[preflight] Activating the kubelet service
+[tlsbootstrap] Waiting for the kubelet to perform the TLS Bootstrap...
+[patchnode] Uploading the CRI Socket information "/var/run/dockershim.sock" to the Node API object "k3" as an annotation
+
+This node has joined the cluster:
+* Certificate signing request was sent to master and a response
+  was received.
+* The Kubelet was informed of the new secure connection details.
+
+Run 'kubectl get nodes' on the master to see this node join the cluster
+
+查看node,如下:
+kubectl get nodes
+NAME      STATUS     ROLES     AGE       VERSION
+k1        Ready      master    40d       v1.11.0
+k2        Ready      <none>    40d       v1.11.0
+k3        NotReady   <none>    7s        v1.11.2
